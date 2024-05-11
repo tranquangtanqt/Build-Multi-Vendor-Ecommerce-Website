@@ -1,14 +1,16 @@
 <?php
 
-use App\Events\UserRegisterd;
-use App\Http\Controllers\PostController;
+use App\DataTables\UsersDataTable;
+use App\Helpers\ImageFilter;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\ProfileController;
-use App\Jobs\SendMail;
-use App\Mail\PostPublished;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
+use App\Models\Post;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
+use Intervention\Image\ImageManagerStatic;
+use Laravel\Socialite\Facades\Socialite;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,8 +27,12 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
+Route::get('user/{id}/edit', function($id){
+    return $id;
+})->name('user.edit');
+
+Route::get('/dashboard', function (UsersDataTable $dataTable) {
+    return $dataTable->render('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -38,33 +44,67 @@ Route::middleware('auth')->group(function () {
 require __DIR__.'/auth.php';
 
 
-/** CRUD Routes */
-Route::group(['middleware' => 'auth'], function(){
-    Route::get('/posts/trash', [PostController::class, 'trashed'])->name('posts.trashed');
-    Route::get('/posts/{id}/restore', [PostController::class, 'restore'])->name('posts.restore');
-    Route::delete('/posts/{id}/force-delete', [PostController::class, 'forceDelete'])->name('posts.force_delete');
-    
-    Route::resource('posts', PostController::class);
+Route::get('image', function(){
+    $img = ImageManagerStatic::make('car.jpg');
+
+    $img->filter(new ImageFilter(15));
+
+
+    // $img->save('car1.jpg', 80);
+    return $img->response();
 });
 
-Route::get('send-mail', function(){
-   
-    SendMail::dispatch();
+Route::get('shop', [CartController::class, 'shop'])->name('shop');
+Route::get('cart', [CartController::class, 'cart'])->name('cart');
+Route::get('add-to-cart/{product_id}', [CartController::class, 'addToCart'])->name('add-to-cart');
 
-    dd('mail has been send');
+Route::get('qty-increment/{rowId}', [CartController::class, 'qtyIncrement'])->name('qty-increment');
+Route::get('qty-decrement/{rowId}', [CartController::class, 'qtyDecrement'])->name('qty-decrement');
+Route::get('remove-product/{rowId}', [CartController::class, 'removeProduct'])->name('remove-product');
+
+
+Route::get('create-role', function(){
+
+    // $role = Role::create(['name' => 'publisher']);
+
+    // return $role;
+
+    // $permission = Permission::create(['name' => 'edit articles']);
+
+    // return $permission;
+
+    $user = auth()->user();
+    // $user->assignRole('writer');
+    // $user->givePermissionTo('edit articles');
+
+    if($user->can('delete articles')){
+        return 'user have permission';
+    }else {
+        return 'user dont have permission';
+    }
 });
 
-Route::get('user-register', function(){
-    $email = 'example@gmail.com';
+Route::get('posts', function(){
 
-    event(new UserRegisterd($email));
-    dd('message send');
+    $posts = Post::all();
+    return view('post.post', compact('posts'));
 });
 
-// en, hi
-Route::get('greeting/{locale}', function($locale){
+Route::get('/auth/redirect', function(){
+    return Socialite::driver('github')->redirect();
+})->name('github.login');
 
-    App::setLocale($locale);
+Route::get('/auth/callback', function(){
+    $user = Socialite::driver('github')->user();
 
-    return view('greeting');
-})->name('greeting');
+    $user = User::firstOrCreate([
+        'email' => $user->email
+    ],[
+        'name' => $user->name,
+        'password' => bcrypt(Str::random(24))
+    ]);
+
+    Auth::login($user, true);
+
+    return redirect('/dashboard');
+});
