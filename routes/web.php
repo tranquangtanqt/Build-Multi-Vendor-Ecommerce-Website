@@ -1,16 +1,14 @@
 <?php
 
-use App\DataTables\UsersDataTable;
-use App\Helpers\ImageFilter;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\ProfileController;
-use App\Models\Post;
-use App\Models\User;
+use App\Http\Controllers\Gateways\InstamojoController;
+use App\Http\Controllers\Gateways\MollieController;
+use App\Http\Controllers\Gateways\RazorpayController;
+use App\Http\Controllers\Gateways\PaypalController;
+use App\Http\Controllers\Gateways\PaystackController;
+use App\Http\Controllers\Gateways\StripeController;
+use App\Http\Controllers\Gateways\TwoCheckoutController;
+use App\Http\Controllers\SslCommerzPaymentController;
 use Illuminate\Support\Facades\Route;
-use Intervention\Image\ImageManagerStatic;
-use Laravel\Socialite\Facades\Socialite;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,84 +25,41 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('user/{id}/edit', function($id){
-    return $id;
-})->name('user.edit');
 
-Route::get('/dashboard', function (UsersDataTable $dataTable) {
-    return $dataTable->render('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::post('paypal/payment', [PaypalController::class, 'payment'])->name('paypal.payment');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-require __DIR__.'/auth.php';
+Route::get('paypal/success', [PaypalController::class, 'success'])->name('paypal.success');
+Route::get('paypal/cancel', [PaypalController::class, 'cancel'])->name('paypal.cancel');
 
 
-Route::get('image', function(){
-    $img = ImageManagerStatic::make('car.jpg');
+Route::post('stripe/payment', [StripeController::class, 'payment'])->name('stripe.payment');
+Route::get('stripe/success', [StripeController::class, 'success'])->name('stripe.success');
+Route::get('stripe/cancel', [StripeController::class, 'cancel'])->name('stripe.cancel');
 
-    $img->filter(new ImageFilter(15));
+Route::post('razorpay/payment', [RazorpayController::class, 'payment'])->name('razorpay.payment');
 
-
-    // $img->save('car1.jpg', 80);
-    return $img->response();
-});
-
-Route::get('shop', [CartController::class, 'shop'])->name('shop');
-Route::get('cart', [CartController::class, 'cart'])->name('cart');
-Route::get('add-to-cart/{product_id}', [CartController::class, 'addToCart'])->name('add-to-cart');
-
-Route::get('qty-increment/{rowId}', [CartController::class, 'qtyIncrement'])->name('qty-increment');
-Route::get('qty-decrement/{rowId}', [CartController::class, 'qtyDecrement'])->name('qty-decrement');
-Route::get('remove-product/{rowId}', [CartController::class, 'removeProduct'])->name('remove-product');
+Route::get('twocheckout/payment',[TwoCheckoutController::class, 'showFrom'])->name('twocheckout.payment');
+Route::post('twocheckout/handle-payment',[TwoCheckoutController::class, 'handlePayment'])->name('twocheckout.handle-payment');
+Route::get('twocheckout/success', [TwoCheckoutController::class, 'success'])->name('twocheckout.success');
 
 
-Route::get('create-role', function(){
+Route::post('instamojo/payment', [InstamojoController::class, 'payment'])->name('instamojo.payment');
 
-    // $role = Role::create(['name' => 'publisher']);
+Route::get('instamojo/callback', [InstamojoController::class, 'callback'])->name('instamojo.callback');
 
-    // return $role;
+Route::post('mollie/payment', [MollieController::class, 'payment'])->name('mollie.payment');
 
-    // $permission = Permission::create(['name' => 'edit articles']);
+Route::get('mollie/success', [MollieController::class, 'success'])->name('mollie.success');
 
-    // return $permission;
+Route::get('paystack/redirect', [PaystackController::class, 'paystackRedirect'])->name('paystack.redirect');
+Route::get('paystack/callback', [PaystackController::class, 'verifyTransaction'])->name('paystack.callback');
 
-    $user = auth()->user();
-    // $user->assignRole('writer');
-    // $user->givePermissionTo('edit articles');
 
-    if($user->can('delete articles')){
-        return 'user have permission';
-    }else {
-        return 'user dont have permission';
-    }
-});
+// SSLCOMMERZ Start
 
-Route::get('posts', function(){
+Route::post('/pay', [SslCommerzPaymentController::class, 'index'])->name('sslcommerz.pay');
 
-    $posts = Post::all();
-    return view('post.post', compact('posts'));
-});
-
-Route::get('/auth/redirect', function(){
-    return Socialite::driver('github')->redirect();
-})->name('github.login');
-
-Route::get('/auth/callback', function(){
-    $user = Socialite::driver('github')->user();
-
-    $user = User::firstOrCreate([
-        'email' => $user->email
-    ],[
-        'name' => $user->name,
-        'password' => bcrypt(Str::random(24))
-    ]);
-
-    Auth::login($user, true);
-
-    return redirect('/dashboard');
-});
+Route::post('/success', [SslCommerzPaymentController::class, 'success']);
+Route::post('/fail', [SslCommerzPaymentController::class, 'fail']);
+Route::post('/cancel', [SslCommerzPaymentController::class, 'cancel']);
+//SSLCOMMERZ END
